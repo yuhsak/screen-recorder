@@ -39,9 +39,9 @@ async function selectSetting(
   label: string,
   option: string,
 ) {
-  screen.getByRole('combobox', { name: label }).focus()
+  within(screen.getByRole('dialog')).getByLabelText(label).focus()
   await user.keyboard('{ArrowDown}')
-  await user.click(screen.getByRole('option', { name: option }))
+  await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: option }))
 }
 
 describe('recording UI', () => {
@@ -65,13 +65,6 @@ describe('recording UI', () => {
     expect(screen.getByRole('button', { name: '録画開始' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: '録画設定' }))
     expect(screen.getByRole('combobox', { name: '動画の解像度' })).toHaveTextContent('720p')
-    await selectSetting(user, '動画の解像度', '1080p')
-    await user.click(screen.getByRole('button', { name: 'キャンセル' }))
-    expect(loadPreferences().settings.resolution).toBe('720p')
-    await user.click(screen.getByRole('button', { name: '録画設定' }))
-    await user.click(screen.getByRole('button', { name: '初期値に戻す' }))
-    await user.click(screen.getByRole('button', { name: '設定を適用' }))
-    expect(loadPreferences().settings).toEqual(DEFAULT_SETTINGS)
   })
 
   it('applies all five recording settings without exposing codec choices', async () => {
@@ -109,36 +102,48 @@ describe('recording UI', () => {
     session.dispose()
   })
 
-  it('discards canceled settings without disturbing capture and reopens with saved settings', async () => {
-    const { session, capture } = setupSession()
-    await ready(session)
-    const user = userEvent.setup()
-    render(<App session={session} unsupported={null} />)
-    await user.click(screen.getByRole('button', { name: '録画設定' }))
-    await selectSetting(user, '動画の保存形式', 'WebM')
-    await user.click(screen.getByRole('button', { name: 'キャンセル' }))
-    expect(session.getSnapshot().settings).toEqual(DEFAULT_SETTINGS)
-    expect(screen.getByRole('button', { name: '録画開始' })).toBeEnabled()
-    expect(capture.release).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('button', { name: '録画設定' }))
-    expect(screen.getByRole('combobox', { name: '動画の保存形式' })).toHaveTextContent('MP4')
-    await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
+  it.each([
+    { label: '動画の保存形式', option: 'WebM', saved: 'MP4' },
+    { label: '動画の解像度', option: '1080p', saved: '720p' },
+  ])(
+    'discards canceled $label changes without disturbing capture or saved settings',
+    async ({ label, option, saved }) => {
+      const { session, capture } = setupSession()
+      const settings = { ...DEFAULT_SETTINGS, resolution: '720p' as const }
+      session.setRecordingSettings(settings)
+      await ready(session)
+      const user = userEvent.setup()
+      render(<App session={session} unsupported={null} />)
+      await user.click(screen.getByRole('button', { name: '録画設定' }))
+      await selectSetting(user, label, option)
+      await user.click(screen.getByRole('button', { name: 'キャンセル' }))
+      expect(session.getSnapshot().settings).toEqual(settings)
+      expect(loadPreferences().settings).toEqual(settings)
+      expect(screen.getByRole('button', { name: '録画開始' })).toBeEnabled()
+      expect(capture.release).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: '録画設定' }))
+      expect(screen.getByRole('combobox', { name: label })).toHaveTextContent(saved)
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    },
+  )
 
   it('disables unused audio bitrate and restores defaults only when applied', async () => {
     const { session } = setupSession()
     session.setAudioEnabled('pc', false)
     session.setAudioEnabled('mic', false)
-    session.setRecordingSettings({ ...DEFAULT_SETTINGS, format: 'webm', frameRate: 60 })
+    const settings = { ...DEFAULT_SETTINGS, format: 'webm' as const, frameRate: 60 }
+    session.setRecordingSettings(settings)
     const user = userEvent.setup()
     render(<App session={session} unsupported={null} />)
     await user.click(screen.getByRole('button', { name: '録画設定' }))
     expect(screen.getByRole('combobox', { name: '音声のビットレート' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: '初期値に戻す' }))
-    expect(session.getSnapshot().settings.format).toBe('webm')
+    expect(session.getSnapshot().settings).toEqual(settings)
+    expect(loadPreferences().settings).toEqual(settings)
     await user.click(screen.getByRole('button', { name: '設定を適用' }))
     expect(session.getSnapshot().settings).toEqual(DEFAULT_SETTINGS)
+    expect(loadPreferences().settings).toEqual(DEFAULT_SETTINGS)
   })
 
   it('lets users select video only, resets capture readiness, and keeps switches locked while recording', async () => {
