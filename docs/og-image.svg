@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 H 0 V 32" fill="none" stroke="#ffffff" stroke-opacity="0.035"/>
+    </pattern>
+    <linearGradient id="screen" x2="0" y2="1">
+      <stop stop-color="#202023"/>
+      <stop offset="1" stop-color="#101012"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#fafafa"/>
+  <g transform="translate(72 62)">
+    <rect width="48" height="48" rx="12" fill="#18181b"/>
+    <rect x="12" y="12" width="24" height="24" rx="5" fill="none" stroke="#fff" stroke-width="2"/>
+    <circle cx="24" cy="24" r="4.5" fill="#fff"/>
+  </g>
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+    <text x="139" y="93" font-size="17" font-weight="500" letter-spacing="2.5" fill="#71717a">SCREEN RECORDER</text>
+    <text x="66" y="245" font-size="96" font-weight="700" letter-spacing="-5" fill="#18181b">Screen</text>
+    <text x="66" y="340" font-size="96" font-weight="700" letter-spacing="-5" fill="#18181b">Recorder</text>
+  </g>
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+    <text x="72" y="405" font-size="28" fill="#27272a">Record your screen and audio.</text>
+    <text x="73" y="447" font-size="18" fill="#71717a">No installs. No sign-up. Just Chrome.</text>
+  </g>
+  <rect x="715" y="158" width="410" height="306" rx="18" fill="#e4e4e7"/>
+  <rect x="699" y="142" width="410" height="306" rx="18" fill="#09090b" stroke="#27272a"/>
+  <path d="M 717 142 H 1091 Q 1109 142 1109 160 V 186 H 699 V 160 Q 699 142 717 142" fill="#18181b"/>
+  <g fill="#52525b">
+    <circle cx="721" cy="164" r="4"/><circle cx="737" cy="164" r="4"/><circle cx="753" cy="164" r="4"/>
+  </g>
+  <circle cx="1047" cy="164" r="4" fill="#ef4444"/>
+  <text x="1060" y="169" font-family="Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="500" fill="#d4d4d8">REC</text>
+  <rect x="700" y="186" width="408" height="205" fill="url(#screen)"/>
+  <rect x="700" y="186" width="408" height="205" fill="url(#grid)"/>
+  <g fill="none" stroke="#d4d4d8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="866" y="255" width="76" height="50" rx="6"/>
+    <path d="M 904 305 V 318 M 886 318 H 922"/>
+  </g>
+  <path d="M 700 391 H 1108" stroke="#27272a"/>
+  <g fill="#a1a1aa">
+    <rect x="722" y="413" width="4" height="10" rx="2"/>
+    <rect x="730" y="407" width="4" height="22" rx="2"/>
+    <rect x="738" y="411" width="4" height="14" rx="2"/>
+    <rect x="746" y="403" width="4" height="30" rx="2"/>
+    <rect x="754" y="408" width="4" height="20" rx="2"/>
+    <rect x="762" y="413" width="4" height="10" rx="2"/>
+  </g>
+  <text x="786" y="423" font-family="Menlo, monospace" font-size="14" fill="#e4e4e7">00:12:48</text>
+  <rect x="1030" y="405" width="56" height="26" rx="6" fill="#fafafa"/>
+  <rect x="1054" y="414" width="8" height="8" rx="1.5" fill="#18181b"/>
+  <path d="M 72 530 H 1128" stroke="#d4d4d8"/>
+  <text x="72" y="573" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="18" fill="#52525b">MP4 / WebM · Saved locally</text>
+  <text x="1128" y="573" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="20" fill="#71717a">screen-recorder.ysk.im</text>
+</svg>
