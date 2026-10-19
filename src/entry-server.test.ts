@@ -52,7 +52,7 @@ describe('static language pages', () => {
         description: messages.appDescription,
         inLanguage: ['ja', 'en'],
       })
-      expect(document.querySelector('#root')?.textContent).toContain(messages.chooseLocation)
+      expect(document.querySelector('#root')?.textContent).toContain(messages.prepareScreen)
       expect(document.querySelector('#root')?.textContent).toContain(messages.localOnly)
       expect(document.querySelector('#root')?.textContent).not.toContain(messages.unsupportedTitle)
       expect(document.querySelector('noscript')?.textContent).toContain(messages.javascriptRequired)

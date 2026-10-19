@@ -4,6 +4,7 @@ export const en = {
   phaseIdle: 'Not started',
   phasePreparing: 'Preparing',
   phaseReady: 'Ready to record',
+  phaseStarting: 'Preparing to record',
   phaseRecording: 'Recording',
   phaseFinalizing: 'Saving',
   phaseCompleted: 'Saved',
@@ -20,16 +21,15 @@ export const en = {
   githubRepository: 'GitHub repository (opens in a new tab)',
   helpTitle: 'Getting started',
   helpBrowser: 'Use the latest Chrome on Mac or Windows.',
-  helpSaveTitle: '1. Choose where to save',
-  helpSave:
-    'Choose a name and location for the video on your computer. Use Settings to adjust the quality and file format.',
-  helpCaptureTitle: '2. Set up your screen and audio',
+  helpCaptureTitle: '1. Set up your screen and audio',
   helpCapture:
-    'In step 02, choose whether to record system audio and your microphone. Enable audio sharing in Chrome’s screen picker if system audio is on, and allow microphone access if the microphone is on. With both off, only video is recorded. Changing either switch after setup requires selecting the screen again.',
-  helpRecordTitle: '3. Check the audio and start recording',
+    'Use Settings to adjust the quality and file format. In step 01, choose whether to record system audio and your microphone. Enable audio sharing in Chrome’s screen picker if system audio is on, and allow microphone access if the microphone is on. With both off, only video is recorded. Changing either switch after setup requires selecting the screen again.',
+  helpRecordTitle: '2. Choose where to save and start recording',
   helpRecord:
-    'Check that the meters move for each enabled audio source. When the microphone is on, it records even if you are muted in your meeting app. Use headphones to avoid recording speaker audio through the microphone. Audio settings are locked during recording.',
-  helpStopTitle: '4. Stop and wait for the file to save',
+    'Check the audio meters and select Start recording. Choose a filename and folder on your computer to begin recording automatically. Nothing is recorded while the picker is open. Canceling keeps your screen and audio ready.',
+  helpAudio:
+    'When the microphone is on, it records even if you are muted in your meeting app. Use headphones to avoid recording speaker audio through the microphone. Audio settings are locked during recording.',
+  helpStopTitle: '3. Stop and wait for the file to save',
   helpStop:
     'Select Stop and save, and keep this page open until it says Saved. Recordings cannot be recovered after closing the page or interruptions caused by sleep.',
   helpRemember:
@@ -47,10 +47,6 @@ export const en = {
   recordingSetup: 'Recording setup',
   reset: 'Reset',
   recordingSteps: 'Recording steps',
-  saveLocation: 'Save location',
-  chooseFilePlaceholder: 'Choose where to save your {format} file',
-  changeLocation: 'Change location',
-  chooseLocation: 'Choose location',
   screenAudio: 'Screen & audio',
   audioSources: 'Audio sources',
   selectMicrophone: 'Microphone device',
@@ -60,7 +56,6 @@ export const en = {
   setupPc: 'Enable audio sharing. The microphone will not be used.',
   setupMic: 'Select a screen and allow the microphone. System audio is off.',
   setupSilent: 'Video only. Audio sharing and microphone access are not needed.',
-  setupAfterSave: 'Choose a save location, then set up your screen and audio.',
   reselectScreen: 'Change screen & audio',
   prepareScreen: 'Set up screen & audio',
   record: 'Record',
@@ -69,6 +64,9 @@ export const en = {
   stopSave: 'Stop and save',
   saving: 'Saving…',
   startRecording: 'Start recording',
+  startingRecording: 'Starting…',
+  saveOnStart:
+    'Choose where to save to start recording. Nothing is recorded while the picker is open.',
   recordingPreview: 'Recording preview',
   preview: 'Preview',
   screenSharing: 'Sharing screen',
@@ -105,7 +103,6 @@ export const en = {
     'Resolution and frame rate are limits; bitrates are targets. Actual values depend on the shared content and your computer.',
   codecHint: 'The codec is selected automatically for your file format.',
   noAudioBitrate: 'Audio bitrate is not used when both audio sources are off.',
-  formatChangeHint: 'Choose a new save location after changing the file format. ',
   captureChangeHint:
     'Set up your screen and audio again after changing the resolution or frame rate.',
   restoreDefaults: 'Restore defaults',

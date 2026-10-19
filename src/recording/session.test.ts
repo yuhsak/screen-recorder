@@ -4,12 +4,12 @@ import { DEFAULT_SETTINGS } from './settings'
 import { RecordingError } from './errors'
 import { PENDING_LIMIT } from './file-writer'
 import { deferred, FakeCapture, flush, ready, setupSession } from '../test/fakes'
-import type { Capture, FileSink } from './types'
+import type { Capture, FileSink, SaveTarget } from './types'
 
 afterEach(() => vi.useRealTimers())
 
 describe('RecordingSession', () => {
-  it('applies bitrate changes at recording start without releasing the prepared capture or file', async () => {
+  it('applies bitrate changes at recording start without releasing the prepared capture', async () => {
     const { session, capture, environment } = setupSession()
     await ready(session)
     const settings = {
@@ -38,7 +38,7 @@ describe('RecordingSession', () => {
       session.setRecordingSettings(settings)
       expect(session.getSnapshot()).toMatchObject({
         phase: 'idle',
-        fileName: 'meeting-test.mp4',
+        fileName: null,
         sourceLabel: null,
         microphones: [],
       })
@@ -51,29 +51,27 @@ describe('RecordingSession', () => {
     },
   )
 
-  it('requires a new save target after a format change and uses the new format with an existing capture', async () => {
+  it('uses the latest format in the picker without releasing the prepared capture', async () => {
     const { session, capture, environment, target } = setupSession()
     await ready(session)
     const settings = { ...DEFAULT_SETTINGS, format: 'webm' as const }
     session.setRecordingSettings(settings)
     expect(session.getSnapshot()).toMatchObject({
-      phase: 'idle',
+      phase: 'ready',
       fileName: null,
       sourceLabel: 'テスト会議',
     })
     expect(capture.release).not.toHaveBeenCalled()
-    await session.start()
-    expect(target.open).not.toHaveBeenCalled()
+    expect(environment.chooseFile).not.toHaveBeenCalled()
     vi.mocked(environment.chooseFile).mockResolvedValueOnce({ ...target, name: 'meeting.webm' })
-    await session.chooseFile()
-    expect(environment.chooseFile).toHaveBeenLastCalledWith('webm')
-    expect(session.getSnapshot().phase).toBe('ready')
     await session.start()
+    expect(environment.chooseFile).toHaveBeenLastCalledWith('webm')
+    expect(session.getSnapshot()).toMatchObject({ phase: 'recording', fileName: 'meeting.webm' })
     expect(capture.createRecorder).toHaveBeenCalledWith(settings)
     await session.stop()
   })
 
-  it('releases the old capture after audio selection changes and keeps the save target', async () => {
+  it('requires fresh capture after audio selection changes', async () => {
     const { session, capture, environment, target } = setupSession()
     await ready(session)
     const oldEnded = capture.ended!
@@ -81,7 +79,7 @@ describe('RecordingSession', () => {
     expect(capture.release).toHaveBeenCalledOnce()
     expect(session.getSnapshot()).toMatchObject({
       phase: 'idle',
-      fileName: target.name,
+      fileName: null,
       preview: null,
       sourceLabel: null,
       microphones: [],
@@ -121,7 +119,6 @@ describe('RecordingSession', () => {
     const closeGate = deferred()
     vi.mocked(environment.capture).mockReturnValueOnce(captureGate.promise)
     vi.mocked(sink.close).mockReturnValueOnce(closeGate.promise)
-    await session.chooseFile()
     const preparing = session.prepareCapture()
     session.setRecordingSettings({ ...DEFAULT_SETTINGS, frameRate: 60 })
     expect(session.getSnapshot().settings).toEqual(DEFAULT_SETTINGS)
@@ -154,11 +151,11 @@ describe('RecordingSession', () => {
     expect(sink.close).not.toHaveBeenCalled()
     expect(sink.abort).toHaveBeenCalledOnce()
   })
-  it('requires both file and capture, and prevents duplicate starts', async () => {
-    const { session, target, driver } = setupSession()
+  it('requires prepared capture before opening the picker and prevents duplicate starts', async () => {
+    const { session, target, driver, environment } = setupSession()
     await session.start()
     expect(target.open).not.toHaveBeenCalled()
-    await session.chooseFile()
+    expect(environment.chooseFile).not.toHaveBeenCalled()
     expect(session.getSnapshot().phase).toBe('idle')
     await session.prepareCapture()
     expect(session.getSnapshot().phase).toBe('ready')
@@ -256,22 +253,127 @@ describe('RecordingSession', () => {
     expect(capture.release).toHaveBeenCalledOnce()
   })
 
-  it('lets the user retry a cancelled picker without losing the existing selection', async () => {
-    const { session, environment } = setupSession()
+  it('preserves prepared devices and settings when the picker is canceled, then starts on retry', async () => {
+    const { session, environment, capture, target, driver } = setupSession()
+    session.setAudioEnabled('pc', false)
+    session.setRecordingSettings({ ...DEFAULT_SETTINGS, videoBitsPerSecond: 12_000_000 })
     await ready(session)
+    await session.selectMicrophone('mic-2')
+    const prepared = session.getSnapshot()
     vi.mocked(environment.chooseFile).mockRejectedValueOnce(
       new DOMException('cancel', 'AbortError'),
     )
-    await session.chooseFile()
-    expect(session.getSnapshot()).toMatchObject({ phase: 'ready', fileName: 'meeting-test.mp4' })
-    await session.chooseFile()
-    expect(session.getSnapshot().message).toBeNull()
-    session.dispose()
+    await session.start()
+    expect(session.getSnapshot()).toEqual(prepared)
+    expect(capture.release).not.toHaveBeenCalled()
+    expect(target.open).not.toHaveBeenCalled()
+    expect(driver.start).not.toHaveBeenCalled()
+    await session.start()
+    expect(environment.chooseFile).toHaveBeenCalledTimes(2)
+    expect(environment.capture).toHaveBeenCalledOnce()
+    expect(driver.start).toHaveBeenCalledOnce()
+    expect(session.getSnapshot().phase).toBe('recording')
+    await session.stop()
   })
+
+  it('locks setup while choosing a file and waits for writable access before starting the clock and recorder', async () => {
+    const { session, environment, target, capture, driver, sink } = setupSession()
+    const picking = deferred<SaveTarget>()
+    const opening = deferred<FileSink>()
+    vi.mocked(environment.chooseFile).mockReturnValueOnce(picking.promise)
+    vi.mocked(target.open).mockReturnValueOnce(opening.promise)
+    await ready(session)
+    const starting = session.start()
+    // The picker must be called before start() yields, preserving user activation.
+    expect(environment.chooseFile).toHaveBeenCalledOnce()
+    expect(session.getSnapshot()).toMatchObject({ phase: 'starting', elapsedMs: 0, fileName: null })
+    session.reset()
+    session.setAudioEnabled('mic', false)
+    session.setRecordingSettings({ ...DEFAULT_SETTINGS, format: 'webm' })
+    await session.selectMicrophone('mic-2')
+    await session.prepareCapture()
+    await session.start()
+    expect(environment.chooseFile).toHaveBeenCalledOnce()
+    expect(environment.capture).toHaveBeenCalledOnce()
+    expect(capture.release).not.toHaveBeenCalled()
+    expect(capture.replaceMicrophone).not.toHaveBeenCalled()
+    expect(session.getSnapshot().audioInputs.mic).toBe(true)
+    expect(session.getSnapshot().settings).toEqual(DEFAULT_SETTINGS)
+    expect(target.open).not.toHaveBeenCalled()
+    expect(driver.start).not.toHaveBeenCalled()
+    picking.resolve(target)
+    await flush()
+    expect(target.open).toHaveBeenCalledOnce()
+    expect(environment.now).not.toHaveBeenCalled()
+    expect(driver.start).not.toHaveBeenCalled()
+    opening.resolve(sink)
+    await starting
+    expect(session.getSnapshot()).toMatchObject({
+      phase: 'recording',
+      fileName: target.name,
+      elapsedMs: 0,
+    })
+    expect(driver.start).toHaveBeenCalledOnce()
+    await session.stop()
+  })
+
+  it.each([
+    new DOMException('Denied', 'NotAllowedError'),
+    new RecordingError(message('errorFileExtension', { extension: '.mp4' })),
+  ])('keeps capture ready when file selection fails: %s', async (error) => {
+    const { session, environment, capture, driver } = setupSession()
+    await ready(session)
+    vi.mocked(environment.chooseFile).mockRejectedValueOnce(error)
+    await session.start()
+    expect(session.getSnapshot()).toMatchObject({ phase: 'ready', fileName: null })
+    expect(session.getSnapshot().message).not.toBeNull()
+    expect(capture.release).not.toHaveBeenCalled()
+    expect(driver.start).not.toHaveBeenCalled()
+    await session.start()
+    expect(session.getSnapshot()).toMatchObject({ phase: 'recording', message: null })
+    await session.stop()
+  })
+
+  it('keeps capture ready when opening the file fails, and picks a new target on retry', async () => {
+    const { session, environment, target, capture, driver } = setupSession()
+    await ready(session)
+    vi.mocked(target.open).mockRejectedValueOnce(new DOMException('Denied', 'NotAllowedError'))
+    await session.start()
+    expect(session.getSnapshot()).toMatchObject({
+      phase: 'ready',
+      fileName: null,
+      message: message('errorPermission'),
+    })
+    expect(capture.release).not.toHaveBeenCalled()
+    expect(driver.start).not.toHaveBeenCalled()
+    await session.start()
+    expect(environment.chooseFile).toHaveBeenCalledTimes(2)
+    expect(environment.capture).toHaveBeenCalledOnce()
+    expect(session.getSnapshot().phase).toBe('recording')
+    await session.stop()
+  })
+
+  it.each(['capture ended', 'disposed'])(
+    'ignores a late file selection after %s',
+    async (reason) => {
+      const { session, environment, target, capture, driver } = setupSession()
+      const picking = deferred<SaveTarget>()
+      vi.mocked(environment.chooseFile).mockReturnValueOnce(picking.promise)
+      await ready(session)
+      const starting = session.start()
+      if (reason === 'capture ended') capture.ended?.(message('interruptedScreen'))
+      else session.dispose()
+      picking.resolve(target)
+      await starting
+      expect(target.open).not.toHaveBeenCalled()
+      expect(driver.start).not.toHaveBeenCalled()
+      expect(capture.release).toHaveBeenCalledOnce()
+      expect(session.getSnapshot().fileName).toBeNull()
+    },
+  )
 
   it('blocks recording after capture fails or the audio track is missing', async () => {
     const { session, environment, driver } = setupSession()
-    await session.chooseFile()
     vi.mocked(environment.capture).mockRejectedValueOnce(
       new RecordingError(message('errorPcMissing')),
     )
@@ -290,6 +392,8 @@ describe('RecordingSession', () => {
     vi.mocked(target.open).mockReturnValueOnce(opening.promise)
     await ready(session)
     const starting = session.start()
+    await flush()
+    expect(target.open).toHaveBeenCalledOnce()
     capture.ended?.(message('interruptedScreen'))
     opening.resolve(sink)
     await starting

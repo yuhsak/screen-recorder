@@ -10,9 +10,9 @@ import {
 import type {
   AudioInputs,
   Capture,
+  FileSink,
   RecorderDriver,
   RecordingEnvironment,
-  SaveTarget,
   Snapshot,
 } from './types'
 
@@ -35,7 +35,6 @@ const initialSnapshot = (): Snapshot => ({
 export class RecordingSession {
   private snapshot = initialSnapshot()
   private listeners = new Set<() => void>()
-  private target: SaveTarget | null = null
   private capture: Capture | null = null
   private driver: RecorderDriver | null = null
   private writer: FileWriter | null = null
@@ -69,10 +68,6 @@ export class RecordingSession {
   setRecordingSettings(settings: RecordingSettings): void {
     if (!this.canPrepare() || sameSettings(this.snapshot.settings, settings)) return
     const patch: Partial<Snapshot> = { settings: { ...settings }, message: null }
-    if (settings.format !== this.snapshot.settings.format) {
-      this.target = null
-      patch.fileName = null
-    }
     if (captureSettingsChanged(this.snapshot.settings, settings)) {
       this.generation++
       this.releaseCapture()
@@ -83,7 +78,7 @@ export class RecordingSession {
         selectedMicrophone: '',
       })
     }
-    patch.phase = this.capture && this.target ? 'ready' : 'idle'
+    patch.phase = this.capture ? 'ready' : 'idle'
     this.update(patch)
   }
 
@@ -102,23 +97,6 @@ export class RecordingSession {
       selectedMicrophone: '',
       message: null,
     })
-  }
-
-  async chooseFile(): Promise<void> {
-    if (!this.canPrepare()) return
-    const generation = this.generation
-    this.update({ phase: 'preparing', message: null })
-    try {
-      // Invoke synchronously from the click, before any unrelated await.
-      const target = await this.environment.chooseFile(this.snapshot.settings.format)
-      if (generation !== this.generation) return
-      this.target = target
-      this.update({ fileName: target.name })
-      this.preparationDone()
-    } catch (error) {
-      if (generation !== this.generation) return
-      this.preparationDone(describeError(error))
-    }
   }
 
   async prepareCapture(): Promise<void> {
@@ -190,23 +168,40 @@ export class RecordingSession {
   }
 
   async start(): Promise<void> {
-    if (this.snapshot.phase !== 'ready' || !this.target || !this.capture) return
+    if (this.snapshot.phase !== 'ready' || !this.capture) return
     const generation = this.generation
     const capture = this.capture
     this.update({
-      phase: 'preparing',
+      phase: 'starting',
+      fileName: null,
       message: null,
       interruption: null,
       elapsedMs: 0,
       writtenBytes: 0,
       pendingBytes: 0,
     })
+    let sink: FileSink
+    let picked = false
     try {
-      const sink = await this.target.open()
+      // Open the picker directly from the click, before any unrelated await.
+      const target = await this.environment.chooseFile(this.snapshot.settings.format)
+      if (generation !== this.generation) return
+      picked = true
+      sink = await target.open()
       if (generation !== this.generation) {
         await sink.abort().catch(() => undefined)
         return
       }
+      this.update({ fileName: target.name })
+    } catch (error) {
+      if (generation !== this.generation) return
+      const reason = describeError(error)
+      // Canceling the picker is a normal return to the prepared preview. Other
+      // file errors also allow retrying without acquiring the screen again.
+      this.preparationDone(!picked && reason.key === 'errorCanceled' ? null : reason)
+      return
+    }
+    try {
       this.writer = new FileWriter(sink, {
         progress: (writtenBytes, pendingBytes) => {
           if (generation === this.generation) this.update({ writtenBytes, pendingBytes })
@@ -280,7 +275,6 @@ export class RecordingSession {
         this.unlistenRecorder = null
         this.driver = null
         this.writer = null
-        this.target = null
         this.update({ phase: 'completed', pendingBytes: 0 })
       } catch (error) {
         if (generation === this.generation) this.fail(error)
@@ -290,7 +284,7 @@ export class RecordingSession {
   }
 
   reset(): void {
-    if (['recording', 'finalizing', 'preparing'].includes(this.snapshot.phase)) return
+    if (['recording', 'finalizing', 'preparing', 'starting'].includes(this.snapshot.phase)) return
     this.dispose()
     this.snapshot = {
       ...initialSnapshot(),
@@ -316,7 +310,6 @@ export class RecordingSession {
     this.stopping = null
     void this.writer?.abort()
     this.writer = null
-    this.target = null
     this.releaseCapture()
   }
 
@@ -344,7 +337,7 @@ export class RecordingSession {
     return ['idle', 'ready', 'error'].includes(this.snapshot.phase)
   }
   private preparationDone(message: Message | null = null): void {
-    this.update({ phase: this.capture && this.target ? 'ready' : 'idle', message })
+    this.update({ phase: this.capture ? 'ready' : 'idle', message })
   }
   private clearTimer(): void {
     if (this.timer) clearInterval(this.timer)

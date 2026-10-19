@@ -2,7 +2,7 @@ import type { RecordingFormat, RecordingSettings } from './settings'
 import type { Message } from '../i18n/messages'
 
 export type Phase =
-  'idle' | 'preparing' | 'ready' | 'recording' | 'finalizing' | 'completed' | 'error'
+  'idle' | 'preparing' | 'ready' | 'starting' | 'recording' | 'finalizing' | 'completed' | 'error'
 
 export interface FileSink {
   write(chunk: Blob): Promise<void>

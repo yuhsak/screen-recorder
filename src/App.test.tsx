@@ -10,6 +10,7 @@ import userEvent from '@testing-library/user-event'
 import App from './App'
 import { deferred, ready, setupSession } from './test/fakes'
 import { RecordingError } from './recording/errors'
+import type { SaveTarget } from './recording/types'
 
 afterEach(() => cleanup())
 beforeEach(() => {
@@ -54,14 +55,14 @@ describe('recording UI', () => {
     await selectSetting(user, '動画の保存形式', 'WebM')
     await selectSetting(user, '動画の解像度', '720p')
     await user.click(screen.getByRole('button', { name: '設定を適用' }))
-    await user.click(screen.getByRole('button', { name: '保存先を選ぶ' }))
+    await user.click(screen.getByRole('button', { name: '画面・音声を準備' }))
     firstVisit.unmount()
 
     render(<App unsupported={null} />)
     expect(screen.getByRole('switch', { name: 'マイクを録音' })).not.toBeChecked()
     expect(screen.getByRole('switch', { name: 'PC音声を録音' })).toBeChecked()
-    expect(screen.getByText('WebMファイルの保存先を選択')).toBeVisible()
-    expect(screen.getByRole('button', { name: '画面・音声を準備' })).toBeDisabled()
+    expect(screen.getByText('WebM')).toBeVisible()
+    expect(screen.getByRole('button', { name: '画面・音声を準備' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '録画開始' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: '録画設定' }))
     expect(screen.getByRole('combobox', { name: '動画の解像度' })).toHaveTextContent('720p')
@@ -94,10 +95,12 @@ describe('recording UI', () => {
         audioBitsPerSecond: 256_000,
       },
     })
-    expect(screen.getByText('WebMファイルの保存先を選択')).toBeVisible()
+    expect(screen.getByText('WebM')).toBeVisible()
     expect(screen.getByText('最大720p / 60fps · 12Mbps')).toBeVisible()
     expect(screen.getByRole('button', { name: '録画開始' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: '保存先を選ぶ' }))
+    expect(environment.chooseFile).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: '画面・音声を準備' }))
+    await user.click(screen.getByRole('button', { name: '録画開始' }))
     expect(environment.chooseFile).toHaveBeenLastCalledWith('webm')
     session.dispose()
   })
@@ -193,22 +196,23 @@ describe('recording UI', () => {
     expect(mic).not.toBeChecked()
   })
 
-  it('guides keyboard users through save target, capture, and recording in one panel', async () => {
+  it('guides keyboard users through capture and recording in two steps', async () => {
     const { session, driver } = setupSession()
     const user = userEvent.setup()
     render(<App session={session} unsupported={null} />)
     const steps = within(screen.getByRole('list', { name: '録画の操作手順' }))
     expect(steps.getAllByRole('button').map((button) => button.textContent)).toEqual([
-      '保存先を選ぶ',
       '画面・音声を準備',
       '録画開始',
     ])
-    expect(screen.getByRole('button', { name: '画面・音声を準備' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '画面・音声を準備' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '録画開始' })).toBeDisabled()
     expect(screen.getByRole('combobox', { name: '使用するマイク' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: '保存先を選ぶ' }))
-    expect(screen.getByRole('button', { name: '録画開始' })).toBeDisabled()
-    await user.tab()
+    expect(steps.getAllByRole('listitem')).toHaveLength(2)
+    expect(screen.getByRole('button', { name: '録画開始' })).toHaveAccessibleDescription(
+      /保存先を選ぶと録画が始まります/,
+    )
+    steps.getByRole('switch', { name: 'PC音声を録音' }).focus()
     expect(steps.getByRole('switch', { name: 'PC音声を録音' })).toHaveFocus()
     await user.tab()
     expect(steps.getByRole('switch', { name: 'マイクを録音' })).toHaveFocus()
@@ -225,20 +229,54 @@ describe('recording UI', () => {
     expect(steps.getByRole('combobox', { name: '使用するマイク' })).toHaveFocus()
   })
 
-  it('keeps later steps locked when the file picker is canceled, then permits retry', async () => {
-    const { session, environment } = setupSession()
+  it('keeps capture ready when the file picker is canceled and automatically records after retry', async () => {
+    const { session, environment, capture, driver } = setupSession()
     vi.mocked(environment.chooseFile).mockRejectedValueOnce(
       Object.assign(new Error('Canceled'), { name: 'AbortError' }),
     )
     const user = userEvent.setup()
     render(<App session={session} unsupported={null} />)
-    await user.click(screen.getByRole('button', { name: '保存先を選ぶ' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('キャンセル')
-    expect(screen.getByRole('button', { name: '画面・音声を準備' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '録画開始' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: '保存先を選ぶ' }))
-    expect(screen.getByRole('button', { name: '画面・音声を準備' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: '画面・音声を準備' }))
+    expect(environment.chooseFile).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: '録画開始' }))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('録画できます')
+    expect(screen.getByRole('button', { name: '画面・音声を選び直す' })).toBeEnabled()
+    expect(screen.getByRole('combobox', { name: '使用するマイク' })).toHaveTextContent(
+      'テストマイク',
+    )
+    expect(screen.getByRole('button', { name: '録画開始' })).toBeEnabled()
+    expect(capture.release).not.toHaveBeenCalled()
+    expect(driver.start).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: '録画開始' }))
+    expect(screen.getByRole('button', { name: '停止して保存' })).toBeEnabled()
+    expect(screen.getByRole('status')).toHaveTextContent('録画中')
+    expect(screen.getByText('meeting-test.mp4')).toBeVisible()
+    expect(environment.capture).toHaveBeenCalledOnce()
+    expect(environment.chooseFile).toHaveBeenCalledTimes(2)
+    expect(driver.start).toHaveBeenCalledOnce()
+  })
+
+  it('shows a pending start and locks configuration until the save location is chosen', async () => {
+    const { session, environment, target, driver } = setupSession()
+    const picking = deferred<SaveTarget>()
+    vi.mocked(environment.chooseFile).mockReturnValueOnce(picking.promise)
+    await ready(session)
+    const user = userEvent.setup()
+    render(<App session={session} unsupported={null} />)
+    await user.click(screen.getByRole('button', { name: '録画開始' }))
+    expect(screen.getByRole('status')).toHaveTextContent('開始を準備しています')
+    expect(screen.getByRole('button', { name: '開始を準備中…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '画面・音声を選び直す' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '録画設定' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'リセット' })).toBeDisabled()
+    expect(screen.getByRole('switch', { name: 'マイクを録音' })).toBeDisabled()
+    expect(screen.getByLabelText('録画時間')).toHaveTextContent('00:00:00')
+    expect(driver.start).not.toHaveBeenCalled()
+    await act(async () => picking.resolve(target))
+    expect(screen.getByRole('status')).toHaveTextContent('録画中')
+    expect(screen.getByRole('button', { name: '停止して保存' })).toBeEnabled()
+    expect(driver.start).toHaveBeenCalledOnce()
   })
 
   it('returns to capture preparation if sharing ends before recording, and can recover', async () => {
@@ -247,7 +285,6 @@ describe('recording UI', () => {
     const user = userEvent.setup()
     render(<App session={session} unsupported={null} />)
     act(() => capture.ended?.(message('interruptedScreen')))
-    expect(screen.getByRole('button', { name: '保存先を変更' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '画面・音声を準備' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '録画開始' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: '画面・音声を準備' }))
@@ -262,7 +299,6 @@ describe('recording UI', () => {
     const user = userEvent.setup()
     render(<App session={session} unsupported={null} />)
     await user.click(screen.getByRole('button', { name: '録画開始' }))
-    expect(screen.getByRole('button', { name: '保存先を変更' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '画面・音声を選び直す' })).toBeDisabled()
     expect(screen.getByRole('combobox', { name: /使用するマイク/ })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: '停止して保存' }))
@@ -273,8 +309,7 @@ describe('recording UI', () => {
     })
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('保存完了'))
     await user.click(screen.getByRole('button', { name: '新しい録画' }))
-    expect(screen.getByRole('button', { name: '保存先を選ぶ' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: '画面・音声を準備' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '画面・音声を準備' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '録画開始' })).toBeDisabled()
   })
 
@@ -285,7 +320,6 @@ describe('recording UI', () => {
     )
     const user = userEvent.setup()
     render(<App session={session} unsupported={null} />)
-    await user.click(screen.getByRole('button', { name: '保存先を選ぶ' }))
     await user.click(screen.getByRole('button', { name: '画面・音声を準備' }))
     expect(screen.getByRole('alert')).toHaveTextContent('PC音声が取得できていません')
     expect(screen.getByRole('button', { name: '録画開始' })).toBeDisabled()
@@ -304,7 +338,7 @@ describe('recording UI', () => {
     await user.click(screen.getByRole('button', { name: '停止して保存' }))
     expect(screen.getByRole('alert')).toHaveTextContent('保存は完了していません')
     expect(screen.queryByText('録画を保存しました')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '保存先を選ぶ' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '画面・音声を準備' })).toBeEnabled()
   })
 
   it('disables acquisition on unsupported browsers', () => {
@@ -316,12 +350,14 @@ describe('recording UI', () => {
     )
     expect(screen.getByRole('alert')).toHaveTextContent('MP4で録画できません')
     expect(screen.getByRole('button', { name: '画面・音声を準備' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '保存先を選ぶ' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '録画開始' })).toBeDisabled()
   })
 
   it('opens help with the keyboard and exposes textual recording guidance', async () => {
     const user = userEvent.setup()
     render(<App session={setupSession().session} unsupported={null} />)
+    await user.tab()
+    expect(screen.getByRole('link', { name: /GitHub/ })).toHaveFocus()
     await user.tab()
     expect(screen.getByRole('button', { name: '使い方' })).toHaveFocus()
     await user.keyboard('{Enter}')

@@ -191,7 +191,7 @@ it.each(['/', '/ja/'])(
     })
     expect(recoverableError).not.toHaveBeenCalled()
     expect(document.documentElement.lang).toBe('ja')
-    expect(screen.getByText('WebMファイルの保存先を選択')).toBeVisible()
+    expect(screen.getByText('WebM')).toBeVisible()
     expect(screen.getByRole('switch', { name: 'マイクを録音' })).not.toBeChecked()
     expect(loadPreferences()).toEqual(preferences)
   },

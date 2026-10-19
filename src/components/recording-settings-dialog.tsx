@@ -72,7 +72,6 @@ interface Props {
   disabled: boolean
   hasAudio: boolean
   hasCapture: boolean
-  hasFile: boolean
   checkFormat: (format: RecordingFormat) => string | null
   onApply: (settings: RecordingSettings) => void
 }
@@ -82,7 +81,6 @@ export function RecordingSettingsDialog({
   disabled,
   hasAudio,
   hasCapture,
-  hasFile,
   checkFormat,
   onApply,
 }: Props) {
@@ -199,11 +197,9 @@ export function RecordingSettingsDialog({
             <p>{t('codecHint')}</p>
             {!hasAudio && <p>{t('noAudioBitrate')}</p>}
           </div>
-          {((hasFile && draft.format !== settings.format) ||
-            (hasCapture && captureSettingsChanged(settings, draft))) && (
+          {hasCapture && captureSettingsChanged(settings, draft) && (
             <p className="text-xs leading-relaxed text-muted-foreground">
-              {hasFile && draft.format !== settings.format && t('formatChangeHint')}
-              {hasCapture && captureSettingsChanged(settings, draft) && t('captureChangeHint')}
+              {t('captureChangeHint')}
             </p>
           )}
           {error && (

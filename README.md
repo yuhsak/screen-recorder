@@ -6,7 +6,7 @@ A free browser app to record your screen and audio, then save MP4 or WebM direct
 
 **[Open Screen Recorder](https://screen-recorder.ysk.im/en/)**
 
-![Screen Recorder with recording controls and a screen preview](docs/preview-en.png)
+![Screen Recorder with recording controls and a screen preview](docs/preview-en.jpg)
 
 ## Features
 
@@ -20,10 +20,9 @@ A free browser app to record your screen and audio, then save MP4 or WebM direct
 
 Adjust **Settings** first if you want to change the recording quality or file format.
 
-1. **Choose location** — Pick a filename and folder on your computer.
-2. **Set up screen & audio** — Choose which audio sources to record, then select a screen. Enable audio sharing in Chrome’s picker for system audio, and allow microphone access if needed.
-3. **Start recording** — Check the audio meters, then start.
-4. **Stop and save** — Keep the page open until **Recording saved** appears. Find the video in the folder you chose.
+1. **Set up screen & audio** — Choose which audio sources to record, then select a screen. Enable audio sharing in Chrome’s picker for system audio, and allow microphone access if needed.
+2. **Start recording** — Check the audio meters, then choose a filename and folder. Recording starts automatically after you confirm. Nothing is recorded while choosing; canceling keeps your screen and audio ready.
+3. **Stop and save** — Keep the page open until **Recording saved** appears. Find the video in the folder you chose.
 
 ## Requirements & Notes
 

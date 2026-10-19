@@ -82,7 +82,6 @@ export function setupSession() {
 }
 
 export async function ready(session: RecordingSession) {
-  await session.chooseFile()
   await session.prepareCapture()
 }
 export async function flush() {

@@ -5,7 +5,6 @@ import {
   CircleHelp,
   CircleStop,
   FileVideo2,
-  FolderOpen,
   HardDrive,
   Info,
   Languages,
@@ -54,6 +53,7 @@ const phaseLabels: Record<Phase, MessageKey> = {
   idle: 'phaseIdle',
   preparing: 'phasePreparing',
   ready: 'phaseReady',
+  starting: 'phaseStarting',
   recording: 'phaseRecording',
   finalizing: 'phaseFinalizing',
   completed: 'phaseCompleted',
@@ -211,10 +211,6 @@ function HelpDialog() {
         </DialogHeader>
         <ol className="space-y-4 text-sm leading-relaxed">
           <li>
-            <strong>{t('helpSaveTitle')}</strong>
-            <p className="mt-1 text-muted-foreground">{t('helpSave')}</p>
-          </li>
-          <li>
             <strong>{t('helpCaptureTitle')}</strong>
             <p className="mt-1 text-muted-foreground">{t('helpCapture')}</p>
           </li>
@@ -227,6 +223,7 @@ function HelpDialog() {
             <p className="mt-1 text-muted-foreground">{t('helpStop')}</p>
           </li>
         </ol>
+        <p className="text-xs leading-relaxed text-muted-foreground">{t('helpAudio')}</p>
         <p className="text-xs leading-relaxed text-muted-foreground">{t('helpRemember')}</p>
         <p className="rounded-lg bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
           {t('helpSystemAudio')}
@@ -251,7 +248,7 @@ function SetupStep({
 }) {
   const { t } = useI18n()
   return (
-    <li aria-current={current ? 'step' : undefined} className="border-b px-5 py-4 last:border-b-0">
+    <li aria-current={current ? 'step' : undefined} className="border-b p-5 last:border-b-0">
       <h3 className="mb-3 flex items-center gap-2.5 text-sm font-medium">
         <span
           aria-hidden
@@ -322,7 +319,8 @@ function RecorderApp({ session: suppliedSession, unsupported: suppliedUnsupporte
   const recording = phase === 'recording'
   const finalizing = phase === 'finalizing'
   const completed = phase === 'completed'
-  const busy = phase === 'preparing' || recording || finalizing
+  const starting = phase === 'starting'
+  const busy = phase === 'preparing' || starting || recording || finalizing
   const canConfigure = hydrated && !busy && !completed && !environmentUnsupported
   const hasCapture = snapshot.sourceLabel !== null && !completed
 
@@ -341,10 +339,10 @@ function RecorderApp({ session: suppliedSession, unsupported: suppliedUnsupporte
     return () => window.removeEventListener('beforeunload', warn)
   }, [recording, finalizing])
 
-  const currentStep = completed ? null : !snapshot.fileName ? 1 : !hasCapture ? 2 : 3
+  const currentStep = completed ? null : !hasCapture ? 1 : 2
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-dvh flex-col">
       <header className="border-b bg-background">
         <div className="mx-auto flex min-h-16 max-w-[1360px] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3 sm:h-16 sm:flex-nowrap sm:px-8 sm:py-0 lg:px-12">
           <div className="flex items-center gap-3">
@@ -371,6 +369,8 @@ function RecorderApp({ session: suppliedSession, unsupported: suppliedUnsupporte
               >
                 {/* GitHub Octicons mark; license: public/licenses/octicons.txt */}
                 <svg
+                  width="16"
+                  height="16"
                   viewBox="0 0 16 16"
                   fill="currentColor"
                   aria-hidden="true"
@@ -405,7 +405,7 @@ function RecorderApp({ session: suppliedSession, unsupported: suppliedUnsupporte
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1360px] px-5 pb-6 pt-6 sm:px-8 lg:px-12">
+      <main className="mx-auto flex w-full max-w-[1360px] flex-1 flex-col px-5 pb-6 pt-6 sm:px-8 lg:px-12 lg:pt-12 lg:[@media(max-height:740px)]:pt-8">
         <h1 className="sr-only">Screen Recorder</h1>
         {(unsupported || snapshot.message) && (
           <Alert variant="destructive" className="mb-5 bg-background">
@@ -429,7 +429,7 @@ function RecorderApp({ session: suppliedSession, unsupported: suppliedUnsupporte
           </Alert>
         )}
 
-        <div className="grid items-start gap-6 lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="mb-8 grid items-start gap-6 lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)]">
           <section aria-label={t('recordingControls')} className="min-w-0">
             <Card className="gap-0 overflow-hidden py-0 shadow-xs">
               <div className="flex h-11 items-center justify-between gap-3 border-b px-5">
@@ -446,7 +446,6 @@ function RecorderApp({ session: suppliedSession, unsupported: suppliedUnsupporte
                     disabled={!canConfigure}
                     hasAudio={hasAudio}
                     hasCapture={hasCapture}
-                    hasFile={Boolean(snapshot.fileName)}
                     checkFormat={(format) => {
                       const reason = checkFormat(format)
                       return reason ? t(reason) : null
@@ -458,7 +457,7 @@ function RecorderApp({ session: suppliedSession, unsupported: suppliedUnsupporte
                       variant="ghost"
                       size="xs"
                       onClick={() => session.reset()}
-                      disabled={busy || (!snapshot.fileName && !hasCapture && phase !== 'error')}
+                      disabled={busy || (!hasCapture && phase !== 'error')}
                       className="text-[11px] text-muted-foreground"
                     >
                       <RefreshCw className="size-3" />
@@ -470,38 +469,9 @@ function RecorderApp({ session: suppliedSession, unsupported: suppliedUnsupporte
               <ol aria-label={t('recordingSteps')}>
                 <SetupStep
                   number={1}
-                  title={t('saveLocation')}
-                  complete={Boolean(snapshot.fileName)}
-                  current={currentStep === 1}
-                >
-                  <div className="mb-3 flex h-10 items-center gap-2.5 rounded-md border bg-muted/40 px-3">
-                    <FileVideo2 className="size-4 shrink-0 text-muted-foreground" />
-                    <p
-                      className={cn(
-                        'min-w-0 truncate text-xs',
-                        !snapshot.fileName && 'text-muted-foreground',
-                      )}
-                      title={snapshot.fileName ?? undefined}
-                    >
-                      {snapshot.fileName || t('chooseFilePlaceholder', { format: formatLabel })}
-                    </p>
-                  </div>
-                  <Button
-                    variant={snapshot.fileName ? 'outline' : 'default'}
-                    onClick={() => void session.chooseFile()}
-                    disabled={!canConfigure || Boolean(unsupported)}
-                    className="h-10 w-full text-xs"
-                  >
-                    <FolderOpen className="size-4" />
-                    {snapshot.fileName ? t('changeLocation') : t('chooseLocation')}
-                  </Button>
-                </SetupStep>
-
-                <SetupStep
-                  number={2}
                   title={t('screenAudio')}
                   complete={hasCapture || completed}
-                  current={currentStep === 2}
+                  current={currentStep === 1}
                 >
                   <div
                     role="group"
@@ -564,22 +534,20 @@ function RecorderApp({ session: suppliedSession, unsupported: suppliedUnsupporte
                       </p>
                     ) : (
                       <p>
-                        {snapshot.fileName
-                          ? snapshot.audioInputs.pc
-                            ? snapshot.audioInputs.mic
-                              ? t('setupBoth')
-                              : t('setupPc')
-                            : snapshot.audioInputs.mic
-                              ? t('setupMic')
-                              : t('setupSilent')
-                          : t('setupAfterSave')}
+                        {snapshot.audioInputs.pc
+                          ? snapshot.audioInputs.mic
+                            ? t('setupBoth')
+                            : t('setupPc')
+                          : snapshot.audioInputs.mic
+                            ? t('setupMic')
+                            : t('setupSilent')}
                       </p>
                     )}
                   </div>
                   <Button
-                    variant={currentStep === 2 ? 'default' : 'outline'}
+                    variant={currentStep === 1 ? 'default' : 'outline'}
                     onClick={() => void session.prepareCapture()}
-                    disabled={!canConfigure || !snapshot.fileName || Boolean(unsupported)}
+                    disabled={!canConfigure || Boolean(unsupported)}
                     className="h-10 w-full text-xs"
                   >
                     <MonitorUp className="size-4" />
@@ -588,10 +556,10 @@ function RecorderApp({ session: suppliedSession, unsupported: suppliedUnsupporte
                 </SetupStep>
 
                 <SetupStep
-                  number={3}
+                  number={2}
                   title={t('record')}
                   complete={completed}
-                  current={currentStep === 3}
+                  current={currentStep === 2}
                 >
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                     <p
@@ -636,9 +604,15 @@ function RecorderApp({ session: suppliedSession, unsupported: suppliedUnsupporte
                       <LoaderCircle className="size-4 animate-spin" />
                       {t('saving')}
                     </Button>
+                  ) : starting ? (
+                    <Button disabled className="h-11 w-full text-xs">
+                      <LoaderCircle className="size-4 animate-spin" />
+                      {t('startingRecording')}
+                    </Button>
                   ) : (
                     <Button
                       onClick={() => void session.start()}
+                      aria-describedby="save-on-start"
                       disabled={phase !== 'ready' || Boolean(unsupported)}
                       className="h-11 w-full text-xs"
                     >
@@ -646,6 +620,18 @@ function RecorderApp({ session: suppliedSession, unsupported: suppliedUnsupporte
                       {t('startRecording')}
                     </Button>
                   )}
+                  <div className="mt-3 flex min-h-8 min-w-0 items-start gap-2 text-[11px] leading-4 text-muted-foreground">
+                    {snapshot.fileName ? (
+                      <>
+                        <FileVideo2 className="size-3.5 shrink-0" />
+                        <span className="truncate" title={snapshot.fileName}>
+                          {snapshot.fileName}
+                        </span>
+                      </>
+                    ) : (
+                      <p id="save-on-start">{t('saveOnStart')}</p>
+                    )}
+                  </div>
                 </SetupStep>
               </ol>
             </Card>
@@ -759,7 +745,7 @@ function RecorderApp({ session: suppliedSession, unsupported: suppliedUnsupporte
             </p>
           </section>
         </div>
-        <footer className="mt-8 flex flex-wrap items-center justify-end gap-3 border-t pt-5 text-[11px] text-muted-foreground">
+        <footer className="mt-auto flex flex-wrap items-center justify-end gap-3 border-t pt-5 text-[11px] text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <HardDrive className="size-3" />
             Chrome for Mac & Windows
