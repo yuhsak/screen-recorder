@@ -15,6 +15,7 @@ export const ja = {
   pcAudio: 'PC音声',
   microphone: 'マイク',
   help: '使い方',
+  githubRepository: 'GitHubリポジトリ（新しいタブで開く）',
   helpTitle: '録画をはじめるには',
   helpBrowser: 'Mac・Windowsの最新版Chromeをご利用ください。',
   helpSaveTitle: '1. 保存先を選ぶ',

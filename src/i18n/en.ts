@@ -17,6 +17,7 @@ export const en = {
   pcAudio: 'System audio',
   microphone: 'Microphone',
   help: 'Help',
+  githubRepository: 'GitHub repository (opens in a new tab)',
   helpTitle: 'Getting started',
   helpBrowser: 'Use the latest Chrome on Mac or Windows.',
   helpSaveTitle: '1. Choose where to save',
