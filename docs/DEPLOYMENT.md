@@ -28,6 +28,16 @@ The build emits three pages that can be opened directly:
 
 Each page includes its own canonical URL and reciprocal `hreflang` links. `/` is the `x-default` entry point, with English initial HTML and sharing metadata. The language-specific pages include localized content and metadata. All three use the same English OGP image.
 
+## Google Analytics
+
+To enable GA4, add a **repository variable** named `GA_MEASUREMENT_ID` in **Settings → Secrets and variables → Actions → Variables**, with your `G-...` measurement ID as its value.
+
+The deployment workflow passes this variable to the build on `main`, excluding pull requests. The build inserts the standard Google tag once into each of the three pages. The ID is public in the generated HTML; it is not a secret and is not stored in the source code.
+
+The dev server never includes the tag. Builds without the variable omit it, so local builds and forks do not send analytics by default. Explicitly building with the variable also enables analytics in the resulting local preview. Changing or removing the repository variable requires a new deployment to take effect.
+
+After deployment, verify collection with [Google Tag Assistant](https://tagassistant.google.com/) or GA4's Realtime report. Page views use Google's standard tracking; no custom recording events or recording contents are sent by the app. For page views on language changes between `/en/` and `/ja/`, keep the web stream's enhanced measurement for browser history changes enabled.
+
 ## Metadata and domain changes
 
 - The public site URL is defined in [`src/i18n/routes.ts`](../src/i18n/routes.ts).
